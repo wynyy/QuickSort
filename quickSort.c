@@ -1,3 +1,8 @@
+/*
+ * Linearised QuickSort on a random int array.
+ * To limits memory used why used a stack to store each step of the algorithm.
+ */
+
 #define QuickSort_C
 
 #include <stdio.h>
@@ -63,8 +68,8 @@ static lifoSubA_t initLifo(void) {
 static void extendsLifoCap(lifoSubA_t *stack) {
 	if (stack->capacity > 1600) {
 		/* 
-		 * If we need a 16K stack, whe should have made an error previously (or a gigantic array is
-		 * treated).
+		 * If we need a 16K stack, whe should have made an error previously (or a
+		 * gigantic array is used).
 		 */
 		printf("Error : unable to extends capacity of stack, already a 16K.");
 		exit(1);
