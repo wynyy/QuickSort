@@ -15,9 +15,9 @@
  * For linear QuickSort FIFO used more memory.
  */
 typedef struct {
-	subA_t *lifo;
-	short capacity,
-		used;
+	subA_t *lifo;		/* Stack of subA_t. */
+	short capacity,		/* Capacity of the stack. */
+		used;			/* Place of the stack used. */
 } lifoSubA_t;
 
 static lifoSubA_t initLifo(void);
@@ -30,7 +30,7 @@ static void subQuickSort(lifoSubA_t *);
  * Create a random int array of a the given length and sort it.
  */
 void quickSort(int length) {
-	int *array = randomArray(length);
+	int *array = randomArrayPrivate(length);
 	lifoSubA_t stack=initLifo();
 	subA_t entireArray;
 	entireArray.begin = array;

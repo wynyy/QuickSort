@@ -2,14 +2,34 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/mman.h>
 #include <time.h>
 
 /*
  * Create a random int array with a given length.
  */
-int *randomArray(int length) {
+int *randomArrayPrivate(int length) {
 	int *array;
 	if ((array=malloc(4*length))==NULL) {
+		printf("Error : malloc() for array init.\n");
+		exit(1);
+	}
+	srand(time(NULL));
+	for (int i=0; i<length; i++) {
+		array[i] = rand();
+	}
+	return array;
+}
+
+
+/*
+ * Create a random int array with a given length.
+ * In shared memory space.
+ */
+int *randomArrayShared(int length) {
+	int *array;
+	if ((array=mmap(NULL,4*length,PROT_READ|PROT_WRITE,MAP_ANON
+			|MAP_SHARED,-1,0))==MAP_FAILED) {
 		printf("Error : malloc() for array init.\n");
 		exit(1);
 	}

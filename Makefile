@@ -1,6 +1,9 @@
 default : a.out
 
-a.out : main.o quickSort.o utils.o
+clean :
+	rm a.out *.o
+
+a.out : main.o quickSort.o utils.o processQuickSort.o
 	gcc quickSort.o utils.o main.o
 
 main.o : main.c quickSort.h
@@ -11,6 +14,5 @@ quickSort.o : quickSort.c utils.h
 
 utils.o : utils.c utils.h
 	gcc -c utils.c
-
-clean :
-	rm a.out *.o
+processQuickSort.o : processQuickSort.c utils.h
+	gcc -c processQuickSort.c -pthread

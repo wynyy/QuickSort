@@ -12,7 +12,8 @@ typedef struct {
 		length;		/* Length of the sub-array. */
 } subA_t;
 
-Utils_P int *randomArray(int);
+Utils_P int *randomArrayPrivate(int);
+Utils_P int *randomArrayShared(int);
 Utils_P int sortCheck(int *, int);
 Utils_P void swap(int *, int, int);
 
