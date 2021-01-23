@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "quickSort.h"
+#include "processQuickSort.h"
 
 #define MaxValue 1000000
-#define MaxProcess 8
 
 static int strToInt(char *);
 static void sizeCheck(char *);
@@ -24,7 +24,7 @@ int main (int argc, char **argv) {
 	} else if (process == -1) {
 		quickSort(size);
 	} else {
-		printf("Number process : %d.\n",process);
+		processQuickSort(size,process);
 	}
 	return 0;
 }

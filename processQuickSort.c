@@ -15,6 +15,7 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include "utils.h"
+#include "processQuickSort.h"
 
 /*
  * Creation of a LIFO (Last In First Out) (Stack).
@@ -36,17 +37,21 @@ typedef struct {
 } lifoProc_t;
 
 static lifoProc_t *initLifo(void);
-static void freeLifoProc(lifoProc_t *);
-
+static void freeLifo(lifoProc_t *);
 /*
  * Create a random int array of a the given length and sort it using process.
  * The number of process create is also given.
  */
-void quickSort(int length, int process) {
+void processQuickSort(int length, int process) {
 	lifoProc_t *stack=initLifo();
-	int *array=randomArrayShared(length);
+	int *array=randomArrayShared(length), childP[MaxProcess];
 	printf("Process number : %d.\n",process);
-	freeLifoProc(stack);
+	if (sortCheck(array,length)) {
+		printf("Array correctly sorted.\n");
+	} else {
+		printf("Array not sorted.\n");
+	}
+	freeLifo(stack);
 	munmap(array,4*length);
 }
 
@@ -85,7 +90,7 @@ static lifoProc_t *initLifo(void) {
  * Free space of a lifoProc_t.
  * Also destroy mutex and semaphore.
  */
-static void freeLifoProc(lifoProc_t *stack) {
+static void freeLifo(lifoProc_t *stack) {
 	sem_destroy(&stack->pauses);
 	pthread_mutex_destroy(&stack->mutex);
 	munmap(stack->filo,4*stack->capacity);

@@ -7,6 +7,8 @@
 #define ProcessQuickSort_P
 #endif
 
-ProcessQuickSort_P void quickSort(int, int);
+#define MaxProcess 8
+
+ProcessQuickSort_P void processQuickSort(int, int);
 
 #endif
