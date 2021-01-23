@@ -6,6 +6,7 @@
  */
 
 #define ProcessQuickSort_C
+#define _GNU_SOURCE 	/* Needed to used mremap(). */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,6 +39,10 @@ typedef struct {
 
 static lifoProc_t *initLifo(void);
 static void freeLifo(lifoProc_t *);
+static void extendsLifoCap(lifoProc_t *);
+static void addLifo(lifoProc_t *, subA_t);
+static subA_t pullLifo(lifoProc_t *);
+
 /*
  * Create a random int array of a the given length and sort it using process.
  * The number of process create is also given.
@@ -46,6 +51,10 @@ void processQuickSort(int length, int process) {
 	lifoProc_t *stack=initLifo();
 	int *array=randomArrayShared(length), childP[MaxProcess];
 	printf("Process number : %d.\n",process);
+	subA_t entireArray;
+	entireArray.begin = array;
+	entireArray.length = length;
+	addLifo(stack,entireArray);
 	if (sortCheck(array,length)) {
 		printf("Array correctly sorted.\n");
 	} else {
@@ -95,4 +104,54 @@ static void freeLifo(lifoProc_t *stack) {
 	pthread_mutex_destroy(&stack->mutex);
 	munmap(stack->filo,4*stack->capacity);
 	munmap(stack,sizeof(stack));
+}
+
+/*
+ * Extends capacity of the LIFO.
+ * We only extends by 200 the capacity because we used the stack in a quick sort.
+ * In other situation we should rather multiply by 2 to reduce complexity.
+ */
+static void extendsLifoCap(lifoProc_t *stack) {
+	if (stack->capacity > 16000) {
+		/* 
+		 * If we need a 16K stack, whe should have made an error previously (or a
+		 * gigantic array is used).
+		 */
+		printf("Error : unable to extends capacity of stack, already a 16K.");
+		exit(1);
+	}
+	subA_t *tmp;
+	if ((tmp=mremap(stack->filo,sizeof(subA_t)*stack->capacity,
+			sizeof(subA_t)*(stack->capacity+200),MREMAP_MAYMOVE,NULL))==MAP_FAILED) {
+		printf("Error : mremap in extends stack capacity.\n");
+	exit(1);
+	}
+	stack->filo = tmp;
+	stack->capacity += 200;
+}
+
+/*
+ * Add value to stack.
+ * The length must be greater than 1 to be added.
+ * Concurrency ignore.
+ */
+static void addLifo(lifoProc_t *stack, subA_t value) {
+	if (stack->used == stack->capacity) {
+		extendsLifoCap(stack);
+	}
+	stack->filo[(stack->used)++] = value;
+}
+
+/*
+ * Pull the top of the stack or subA_t.begin = NULL if empty.
+ * Concurrency ignore.
+ */
+static subA_t pullLifo(lifoProc_t *stack) {
+	if (!(stack->used)) {
+		subA_t empty;
+		empty.begin = NULL;
+		return empty;
+	} else {
+		return stack->filo[--(stack->used)];
+	}
 }

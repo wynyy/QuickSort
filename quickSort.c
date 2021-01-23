@@ -134,7 +134,7 @@ static void subQuickSort(lifoSubA_t *stack) {
 			pivot=j-1;
 		}
 		/*
-		 * Creation of the 2 subA_t obtened (if possible).
+		 * Creation of the 2 subA_t obtened (if possible else begin = NULL).
 		 */
 		j = segmentSort.length-pivot-1;
 		j = (j>0)?(j):(0);
