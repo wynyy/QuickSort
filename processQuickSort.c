@@ -38,10 +38,12 @@ typedef struct {
 } lifoProc_t;
 
 static lifoProc_t *initLifo(void);
-static void freeLifo(lifoProc_t *);
+static void freeFilo(lifoProc_t *);
 static void extendsLifoCap(lifoProc_t *);
-static void addLifo(lifoProc_t *, subA_t);
-static subA_t pullLifo(lifoProc_t *);
+static void addFilo(lifoProc_t *, subA_t);
+static subA_t pullFilo(lifoProc_t *, char);
+static subA_t subANextLoop(lifoProc_t *, subA_t, subA_t);
+static int createChild(lifoProc_t *, char);
 
 /*
  * Create a random int array of a the given length and sort it using process.
@@ -49,18 +51,21 @@ static subA_t pullLifo(lifoProc_t *);
  */
 void processQuickSort(int length, int process) {
 	lifoProc_t *stack=initLifo();
-	int *array=randomArrayShared(length), childP[MaxProcess];
+	int *array=randomArrayShared(length);
 	printf("Process number : %d.\n",process);
 	subA_t entireArray;
 	entireArray.begin = array;
 	entireArray.length = length;
-	addLifo(stack,entireArray);
+	stack->filo[0] = entireArray;
+	if (!createChild(stack,process)) {
+		return;
+	}
 	if (sortCheck(array,length)) {
 		printf("Array correctly sorted.\n");
 	} else {
 		printf("Array not sorted.\n");
 	}
-	freeLifo(stack);
+	freeFilo(stack);
 	munmap(array,4*length);
 }
 
@@ -90,7 +95,7 @@ static lifoProc_t *initLifo(void) {
 		pthread_mutexattr_setpshared(&attrmutex,PTHREAD_PROCESS_SHARED);
 		pthread_mutex_init(&stack->mutex,&attrmutex);
 		stack->capacity = 200;
-		stack->used = 0;
+		stack->used = 1;	/* Init at 1 because next we write entireArray. */
 		stack->workingProcess = 0;
 	}
 }
@@ -99,7 +104,7 @@ static lifoProc_t *initLifo(void) {
  * Free space of a lifoProc_t.
  * Also destroy mutex and semaphore.
  */
-static void freeLifo(lifoProc_t *stack) {
+static void freeFilo(lifoProc_t *stack) {
 	sem_destroy(&stack->pauses);
 	pthread_mutex_destroy(&stack->mutex);
 	munmap(stack->filo,4*stack->capacity);
@@ -133,25 +138,163 @@ static void extendsLifoCap(lifoProc_t *stack) {
 /*
  * Add value to stack.
  * The length must be greater than 1 to be added.
- * Concurrency ignore.
  */
-static void addLifo(lifoProc_t *stack, subA_t value) {
+static void addFilo(lifoProc_t *stack, subA_t value) {
+	pthread_mutex_lock(&stack->mutex);
 	if (stack->used == stack->capacity) {
 		extendsLifoCap(stack);
+	} else {
+		if (!(stack->used)) {
+			sem_post(&stack->pauses);
+		}
+		stack->filo[(stack->used)++] = value;
 	}
-	stack->filo[(stack->used)++] = value;
+	pthread_mutex_unlock(&stack->mutex);
 }
 
 /*
  * Pull the top of the stack or subA_t.begin = NULL if empty.
- * Concurrency ignore.
  */
-static subA_t pullLifo(lifoProc_t *stack) {
-	if (!(stack->used)) {
-		subA_t empty;
-		empty.begin = NULL;
-		return empty;
+static subA_t pullFilo(lifoProc_t *stack, char alreadyWaiting) {
+	printf("Pull %d\n",getpid());
+	pthread_mutex_lock(&stack->mutex);
+	subA_t top;
+	if (!alreadyWaiting) {
+		/*
+		 * The process was working.
+		 */
+		if (stack->used) {
+			top = stack->filo[--(stack->used)];
+		} else if (stack->workingProcess > 1) {
+			--(stack->workingProcess);
+			pthread_mutex_unlock(&stack->mutex);
+			sem_wait(&stack->pauses);
+			return pullFilo(stack,1);
+		} else {
+			/*
+			 * Stack empty and no process working.
+			 */
+			sem_post(&stack->pauses);
+			top.begin = NULL;
+		}
 	} else {
-		return stack->filo[--(stack->used)];
+		/*
+		 * Process was waiting.
+		 * Other process make sem_post().
+		 * At leat one working process.
+		 */
+		if (stack->used) {
+			top = stack->filo[--(stack->used)];
+			(stack->workingProcess)++;
+		} else if (stack->workingProcess) {
+			/*
+			 * Process faster get the value.
+			 */
+			pthread_mutex_unlock(&stack->mutex);
+			sem_wait(&stack->pauses);
+			return pullFilo(stack,1);
+		} else {
+			/*
+			 * No process working.
+			 */
+			sem_post(&stack->pauses);
+			top.begin = NULL;
+		}
 	}
+	pthread_mutex_unlock(&stack->mutex);
+	return top;
+}
+
+/*
+ * Determine the next subArray for a quick sort loop.
+ * If left and right NULL, give the stack value.
+ * If both not NULL, add the largest one to the stack.
+ */
+static subA_t subANextLoop(lifoProc_t *stack, subA_t left, subA_t right) {
+	if (left.begin == right.begin) {
+		return pullFilo(stack,0);
+	} else if (left.begin == NULL) {
+		return right;
+	} else if (right.begin == NULL) {
+		return left;
+	} else if (right.length < left.length) {
+		addFilo(stack,left);
+	} else {
+		addFilo(stack,right);
+	}
+}
+
+/*
+ * Subdivision of the QuickSort.
+ */
+static void subQuickSort(lifoProc_t *stack) {
+	subA_t segmentSort=pullFilo(stack,0), tmp;
+	int *array, i, j, pivot;
+	while (segmentSort.begin != NULL) {
+		printf("boucle %d\n",getpid());
+		array = segmentSort.begin;
+		i = 1;
+		j = segmentSort.length-1;
+		pivot = array[0];
+		while (i!=j) {
+			while (i!=j && pivot>=array[i]) i++;
+			while (i!=j && pivot<=array[j]) j--;
+			if (i != j) {
+				swap(array,i,j);
+			}
+		}
+		if (array[j]<pivot) {
+			swap(array,0,j);
+			pivot = j;
+		} else {
+			swap(array,0,j-1);
+			pivot=j-1;
+		}
+		/*
+		 * Creation of the 2 subA_t obtened (if possible else begin = NULL).
+		 */
+		j = segmentSort.length-pivot-1;
+		j = (j>0)?(j):(0);
+		i = pivot;
+		i = (i>0)?(i):(0);
+		segmentSort.begin = (i>1)?(array):(NULL);
+		segmentSort.length = i;
+		tmp.begin = (j>1)?(array+pivot+1):(NULL);
+		tmp.length = j;
+		/*
+		 * At then end, the shortest one must be in segmentSort for the next while.
+		 * Or NULL if sort done.
+		 */
+		segmentSort = subANextLoop(stack,segmentSort,tmp);
+	}
+}
+
+/*
+ * Create all child.
+ */
+static int createChild(lifoProc_t *stack, char childNumber) {
+	int i=0, id=1;
+	for (i=1; i<childNumber && id; i++) {
+		if ((id=fork())==-1) {
+			printf("Warning : only %d process working.\n",i);
+			childNumber = i;
+		} else if (!id) {
+			printf("Child : %d\n",getpid());
+			/*
+			 * Child process.
+			 */
+			subQuickSort(stack);
+		}
+	}
+	if (id) {
+		/*
+		 * Main process.
+		 */
+		printf("Father process.\n");
+		subQuickSort(stack);
+		while (--childNumber) {
+			wait(NULL);
+		}
+	}
+	return id;
 }
