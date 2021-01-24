@@ -44,6 +44,7 @@ static void addFilo(lifoProc_t *, subA_t);
 static subA_t pullFilo(lifoProc_t *, char);
 static subA_t subANextLoop(lifoProc_t *, subA_t, subA_t);
 static int createChild(lifoProc_t *, char);
+void bubleSort(subA_t);
 
 /*
  * Create a random int array of a the given length and sort it using process.
@@ -57,6 +58,7 @@ void processQuickSort(int length, int process) {
 	entireArray.begin = array;
 	entireArray.length = length;
 	stack->filo[0] = entireArray;
+	stack->waitingProcess = process;
 	if (!createChild(stack,process)) {
 		return;
 	}
@@ -82,13 +84,13 @@ static lifoProc_t *initLifo(void) {
 			|MAP_SHARED,-1,0))==MAP_FAILED) {
 		printf("Error : mmap() for lifoProc_t init.\n");
 		exit(1);
-	} else if ((stack->filo=mmap(NULL,4*200,PROT_READ|PROT_WRITE
+	} else if ((stack->filo=mmap(NULL,sizeof(subA_t)*200,PROT_READ|PROT_WRITE
 			,MAP_ANON|MAP_SHARED,-1,0))==MAP_FAILED) {
 		printf("Error : mmap for lifoProc_t->lifo init.\n");
-		exit(1);
+		exit(2);
 	} else if (sem_init(&stack->pauses,1,0)==-1) {
 		printf("Error : sem_init() lifoProc_t init.\n");
-		exit(1);
+		exit(3);
 	} else {
 		pthread_mutexattr_t attrmutex;
 		pthread_mutexattr_init(&attrmutex);
@@ -99,6 +101,7 @@ static lifoProc_t *initLifo(void) {
 		stack->workingProcess = 0;
 		stack->waitingProcess = 0;
 	}
+	return stack;
 }
 
 /*
@@ -108,7 +111,7 @@ static lifoProc_t *initLifo(void) {
 static void freeFilo(lifoProc_t *stack) {
 	sem_destroy(&stack->pauses);
 	pthread_mutex_destroy(&stack->mutex);
-	munmap(stack->filo,4*stack->capacity);
+	munmap(stack->filo,sizeof(subA_t)*stack->capacity);
 	munmap(stack,sizeof(stack));
 }
 
@@ -118,19 +121,19 @@ static void freeFilo(lifoProc_t *stack) {
  * In other situation we should rather multiply by 2 to reduce complexity.
  */
 static void extendsLifoCap(lifoProc_t *stack) {
+	printf("Extends\n");
 	if (stack->capacity > 16000) {
 		/* 
 		 * If we need a 16K stack, whe should have made an error previously (or a
 		 * gigantic array is used).
 		 */
 		printf("Error : unable to extends capacity of stack, already a 16K.");
-		exit(1);
+		exit(4);
 	}
 	subA_t *tmp;
-	if ((tmp=mremap(stack->filo,sizeof(subA_t)*stack->capacity,
-			sizeof(subA_t)*(stack->capacity+200),MREMAP_MAYMOVE,NULL))==MAP_FAILED) {
+	if ((tmp=mremap(stack->filo,sizeof(subA_t)*stack->capacity,sizeof(subA_t)*
+			(stack->capacity+200),MREMAP_MAYMOVE,NULL))==MAP_FAILED) {
 		printf("Error : mremap in extends stack capacity.\n");
-	exit(1);
 	}
 	stack->filo = tmp;
 	stack->capacity += 200;
@@ -148,8 +151,8 @@ static void addFilo(lifoProc_t *stack, subA_t value) {
 		if (!(stack->used) && stack->waitingProcess) {
 			sem_post(&stack->pauses);
 		}
-		stack->filo[(stack->used)++] = value;
 	}
+	stack->filo[(stack->used)++] = value;
 	pthread_mutex_unlock(&stack->mutex);
 }
 
@@ -158,7 +161,9 @@ static void addFilo(lifoProc_t *stack, subA_t value) {
  */
 static subA_t pullFilo(lifoProc_t *stack, char working) {
 	pthread_mutex_lock(&stack->mutex);
+// 	printf("\n%d %d\n",stack->used,stack->capacity);
 	stack->workingProcess -= working;
+	stack->waitingProcess -= 1-working;
 	subA_t top;
 	if (stack->used) {
 		(stack->workingProcess)++;
@@ -179,6 +184,7 @@ static subA_t pullFilo(lifoProc_t *stack, char working) {
 		top.begin = NULL;
 	}
 	pthread_mutex_unlock(&stack->mutex);
+// 	printf("Return %d %d\n",top.begin==NULL,top.length);
 	return top;
 }
 
@@ -263,13 +269,15 @@ static int createChild(lifoProc_t *stack, char childNumber) {
 			subQuickSort(stack);
 		}
 	}
-	if (id) {
+	if (id>0) {
+		int nb;
 		/*
 		 * Main process.
 		 */
-		subQuickSort(stack);
+// 		subQuickSort(stack);
 		while (--childNumber) {
-			wait(NULL);
+			waitpid(-1,&nb,0);
+			printf("Retour %d.\n",nb);
 		}
 	}
 	return id;
