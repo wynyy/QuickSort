@@ -169,6 +169,14 @@ static subA_t pullFilo(lifoProc_t *stack, char working) {
  * If both not NULL, add the largest one to the stack.
  */
 static subA_t subANextLoop(lifoProc_t *stack, subA_t left, subA_t right) {
+	if (left.length && left.length < 50) {
+		bubleSort(left);
+		left.begin = NULL;
+	}
+	if (right.length && right.length < 50) {
+		bubleSort(right);
+		right.begin = NULL;
+	}
 	if (left.begin == right.begin) {
 		return pullFilo(stack,1);
 	} else if (left.begin == NULL) {
@@ -249,11 +257,28 @@ static int createChild(lifoProc_t *stack, char childNumber) {
 		/*
 		 * Main process.
 		 */
-// 		subQuickSort(stack);
+		subQuickSort(stack);
 		while (--childNumber) {
 			waitpid(-1,&nb,0);
-			printf("Retour %d.\n",nb);
 		}
 	}
 	return id;
+}
+
+/*
+ * For small array, buble sort is efficient.
+ * Use it alloy to reduce the used of stack.
+ * Reduce time wasted waiting semaphore or mutex.
+ */
+void bubleSort(subA_t segment) {
+	int *array=segment.begin, swp=1;
+	for (int j,i=segment.length-1; i && swp; i--) {
+		swp = 0;
+		for (j=0; j<i; j++) {
+			if (array[j] > array[j+1]) {
+				swap(array,j,j+1);
+				swp = 1;
+			}
+		}
+	}
 }
