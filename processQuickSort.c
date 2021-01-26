@@ -82,7 +82,7 @@ static lifoProc_t *initLifo(int nbProcess) {
 			|MAP_SHARED,-1,0))==MAP_FAILED) {
 		printf("Error : mmap() for lifoProc_t init.\n");
 		exit(1);
-	} else if ((stack->filo=mmap(NULL,sizeof(subA_t)*100*nbProcess,PROT_READ|PROT_WRITE
+	} else if ((stack->filo=mmap(NULL,sizeof(subA_t)*200*nbProcess,PROT_READ|PROT_WRITE
 			,MAP_ANON|MAP_SHARED,-1,0))==MAP_FAILED) {
 		printf("Error : mmap for lifoProc_t->lifo init.\n");
 		exit(2);
@@ -94,7 +94,7 @@ static lifoProc_t *initLifo(int nbProcess) {
 		pthread_mutexattr_init(&attrmutex);
 		pthread_mutexattr_setpshared(&attrmutex,PTHREAD_PROCESS_SHARED);
 		pthread_mutex_init(&stack->mutex,&attrmutex);
-		stack->capacity = 100*nbProcess;
+		stack->capacity = 200*nbProcess;
 		stack->used = 1;	/* Init at 1 because next we write entireArray. */
 		stack->workingProcess = 0;
 		stack->waitingProcess = 0;
@@ -120,7 +120,8 @@ static void freeFilo(lifoProc_t *stack) {
 static void addFilo(lifoProc_t *stack, subA_t value) {
 	pthread_mutex_lock(&stack->mutex);
 	if (stack->used == stack->capacity) {
-		printf("Aye\n");
+		printf("Error : not enought stack space.\n");
+		exit(1);
 	} else {
 		if (!(stack->used) && stack->waitingProcess) {
 			sem_post(&stack->pauses);
