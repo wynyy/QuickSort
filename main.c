@@ -4,7 +4,7 @@
 #include "quickSort.h"
 #include "processQuickSort.h"
 
-#define MaxValue 100000000
+#define MaxValue 250000000
 #define MaxProcess 8
 
 static int strToInt(char *);

@@ -6,7 +6,6 @@
  */
 
 #define ProcessQuickSort_C
-#define _GNU_SOURCE 	/* Needed to used mremap(). */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,9 +36,8 @@ typedef struct {
 								Not block mutex for push. */
 } lifoProc_t;
 
-static lifoProc_t *initLifo(void);
+static lifoProc_t *initLifo(int);
 static void freeFilo(lifoProc_t *);
-static void extendsLifoCap(lifoProc_t *);
 static void addFilo(lifoProc_t *, subA_t);
 static subA_t pullFilo(lifoProc_t *, char);
 static subA_t subANextLoop(lifoProc_t *, subA_t, subA_t);
@@ -51,7 +49,7 @@ void bubleSort(subA_t);
  * The number of process create is also given.
  */
 void processQuickSort(int length, int process) {
-	lifoProc_t *stack=initLifo();
+	lifoProc_t *stack=initLifo(process);
 	int *array=randomArrayShared(length);
 	printf("Process number : %d.\n",process);
 	subA_t entireArray;
@@ -78,13 +76,13 @@ void processQuickSort(int length, int process) {
  * - Init semaphore.
  * - Init mutex and other value.
  */
-static lifoProc_t *initLifo(void) {
+static lifoProc_t *initLifo(int nbProcess) {
 	lifoProc_t *stack;
 	if ((stack=mmap(NULL,sizeof(lifoProc_t),PROT_WRITE|PROT_READ,MAP_ANON
 			|MAP_SHARED,-1,0))==MAP_FAILED) {
 		printf("Error : mmap() for lifoProc_t init.\n");
 		exit(1);
-	} else if ((stack->filo=mmap(NULL,sizeof(subA_t)*200,PROT_READ|PROT_WRITE
+	} else if ((stack->filo=mmap(NULL,sizeof(subA_t)*100*nbProcess,PROT_READ|PROT_WRITE
 			,MAP_ANON|MAP_SHARED,-1,0))==MAP_FAILED) {
 		printf("Error : mmap for lifoProc_t->lifo init.\n");
 		exit(2);
@@ -96,7 +94,7 @@ static lifoProc_t *initLifo(void) {
 		pthread_mutexattr_init(&attrmutex);
 		pthread_mutexattr_setpshared(&attrmutex,PTHREAD_PROCESS_SHARED);
 		pthread_mutex_init(&stack->mutex,&attrmutex);
-		stack->capacity = 200;
+		stack->capacity = 100*nbProcess;
 		stack->used = 1;	/* Init at 1 because next we write entireArray. */
 		stack->workingProcess = 0;
 		stack->waitingProcess = 0;
@@ -116,37 +114,13 @@ static void freeFilo(lifoProc_t *stack) {
 }
 
 /*
- * Extends capacity of the LIFO.
- * We only extends by 200 the capacity because we used the stack in a quick sort.
- * In other situation we should rather multiply by 2 to reduce complexity.
- */
-static void extendsLifoCap(lifoProc_t *stack) {
-	printf("Extends\n");
-	if (stack->capacity > 16000) {
-		/* 
-		 * If we need a 16K stack, whe should have made an error previously (or a
-		 * gigantic array is used).
-		 */
-		printf("Error : unable to extends capacity of stack, already a 16K.");
-		exit(4);
-	}
-	subA_t *tmp;
-	if ((tmp=mremap(stack->filo,sizeof(subA_t)*stack->capacity,sizeof(subA_t)*
-			(stack->capacity+200),MREMAP_MAYMOVE,NULL))==MAP_FAILED) {
-		printf("Error : mremap in extends stack capacity.\n");
-	}
-	stack->filo = tmp;
-	stack->capacity += 200;
-}
-
-/*
  * Add value to stack.
  * The length must be greater than 1 to be added.
  */
 static void addFilo(lifoProc_t *stack, subA_t value) {
 	pthread_mutex_lock(&stack->mutex);
 	if (stack->used == stack->capacity) {
-		extendsLifoCap(stack);
+		printf("Aye\n");
 	} else {
 		if (!(stack->used) && stack->waitingProcess) {
 			sem_post(&stack->pauses);
